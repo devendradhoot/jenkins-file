@@ -1,0 +1,53 @@
+pipeline {
+  environment {
+  registry = "mayurdeshmukh7/myapp"
+  registryCredential = 'dockerhub'
+  dockerImage = ''
+  }
+ agent any
+ stages {
+ stage(‘Clone_Git’) {
+   steps {
+     git branch: 'master', url: 'https://github.com/rahulagalcha97/Maven_Spring.git'
+   }
+  }
+ stage(‘MVN_Build’) {
+   steps {
+    sh 'cd /root/.jenkins/workspace/Containerization_Pipeline'
+    sh '/usr/local/src/apache-maven/bin/mvn clean package'
+   }
+  }
+ stage(‘Docker_Build_Image’) {
+   steps {    
+    sh 'cd /root/.jenkins/workspace/Containerization_Pipeline'
+    script {
+          dockerImage = docker.build registry + ":$BUILD_NUMBER"
+        }
+   }
+}
+   stage('Pushing Image To DockerHub') {
+      steps{
+        script {
+          docker.withRegistry( '', registryCredential ) {
+            dockerImage.push()
+          }
+        }
+      }
+   }
+    stage('Provision Infrastructure') {
+   steps {
+    sh 'cd /home/cloud_user/ansible/POC/' 
+    sh 'ansible-playbook /home/cloud_user/ansible/POC/playbooks/master-infra.yml'
+    
+   }
+  }
+  
+   stage('Setting Kubernetes Cluster') {
+   steps {
+    sh 'cd /home/cloud_user/ansible/POC/'    
+    sh 'ansible-playbook /home/cloud_user/ansible/POC/playbooks/master-k8s.yml'
+    
+   }
+  }
+  }
+}
