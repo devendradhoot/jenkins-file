@@ -51,3 +51,80 @@ pipeline {
   }
   }
 }
+----------------------------------------------
+backup of 29 march
+
+pipeline {
+  environment {
+  registry = "mayurdeshmukh7/myapp"
+  registryCredential = 'dockerhub'
+  dockerImage = ''
+  }
+ agent any
+ stages {
+ stage('Clone Git Repo') {
+   steps {
+     git branch: 'master', url: 'https://github.com/rahulagalcha97/Maven_Spring.git'
+   }
+  }
+ stage('Build Application') {
+   steps {
+    sh 'cd /root/.jenkins/workspace/Containerization_Pipeline'
+    sh '/usr/local/src/apache-maven/bin/mvn clean package'
+   }
+  }
+
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    def version = readFile('version')
+                    def versions = version.split('\\.')
+                    def major = versions[0]
+                    def minor = versions[0] + '.' + versions[1]
+                    def patch = version.trim()
+                    docker.withRegistry('', registryCredential ) {
+                        def image = docker.build('mayurdeshmukh7/myapp:latest')
+                        image.push(minor)
+
+                    }
+                }
+            }
+        }
+
+
+    stage('Provision Infrastructure') {
+   steps {
+    sh 'cd /home/cloud_user/ansible/POC/' 
+    sh 'ansible-playbook /home/cloud_user/ansible/POC/playbooks/master-infra.yml'
+    
+   }
+  }
+  
+   stage('Install Kubernetes') {
+   steps {
+    sh 'cd /home/cloud_user/ansible/POC/'    
+    sh 'ansible-playbook /home/cloud_user/ansible/POC/playbooks/master-k8s.yml'
+    
+   }
+  }
+  
+    
+   stage('Test Infrastructure') {
+   steps {
+     sh 'ansible-playbook /home/cloud_user/ansible/POC/playbooks/infratest.yml'
+   }
+  }
+  stage('Deploy Application on K8S Cluster') {
+   steps {
+     sh 'ansible-playbook /home/cloud_user/ansible/POC/playbooks/deployment.yml'
+   }
+  }
+  stage('Enable K8S Monitoring') {
+   steps {
+     sh 'ansible-playbook /home/cloud_user/ansible/POC/playbooks/monitoring-pre.yml'
+     sh 'ansible-playbook /home/cloud_user/ansible/POC/playbooks/monitoring-config.yml'
+   }
+  }
+  
+ }
+}
